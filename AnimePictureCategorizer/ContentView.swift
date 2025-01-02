@@ -18,54 +18,64 @@ struct ContentView: View {
     ]
 
     var body: some View {
-        HStack {
-            VStack {
-                HStack {
-                    Image(
-                        systemName: inputDirectory != nil
-                            ? "checkmark.circle.fill" : "xmark.circle.fill"
-                    )
-                    Button(
-                        "Input directory", systemImage: "square.and.arrow.down"
-                    ) {
-                        isInputDirectoryPickerPresented = true
-                    }
-                    .fileImporter(
-                        isPresented: $isInputDirectoryPickerPresented,
-                        allowedContentTypes: [.directory],
-                        onCompletion: selectInputDirectory)
+        VStack(spacing: 20) {
+            VStack(spacing: 12) {
+                DirectoryButton(
+                    title: "Select Input Directory",
+                    systemImage: "square.and.arrow.down",
+                    isSelected: inputDirectory != nil
+                ) {
+                    isInputDirectoryPickerPresented = true
                 }
+                .fileImporter(
+                    isPresented: $isInputDirectoryPickerPresented,
+                    allowedContentTypes: [.directory],
+                    onCompletion: selectInputDirectory
+                )
 
+                DirectoryButton(
+                    title: "Select Output Directory",
+                    systemImage: "square.and.arrow.up",
+                    isSelected: outputDirectory != nil
+                ) {
+                    isOutputDirectoryPickerPresented = true
+                }
+                .fileImporter(
+                    isPresented: $isOutputDirectoryPickerPresented,
+                    allowedContentTypes: [.directory],
+                    onCompletion: selectOutputDirectory
+                )
+            }
+
+            Button(action: proceed) {
                 HStack {
-                    Image(
-                        systemName: outputDirectory != nil
-                            ? "checkmark.circle.fill" : "xmark.circle.fill"
-                    )
-                    Button(
-                        "Output directory", systemImage: "square.and.arrow.up"
-                    ) {
-                        isOutputDirectoryPickerPresented = true
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(
+                                CircularProgressViewStyle(tint: .white)
+                            )
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "play.circle.fill")
+                            .font(.title2)
                     }
-                    .fileImporter(
-                        isPresented: $isOutputDirectoryPickerPresented,
-                        allowedContentTypes: [.directory],
-                        onCompletion: selectOutputDirectory)
+                    Text(isLoading ? "Processing..." : "Start Processing")
                 }
+                .frame(maxWidth: .infinity)
+                .padding()
+                .foregroundColor(.white)
+                .cornerRadius(10)
             }
-            VStack {
-                Button("Start", systemImage: "play.circle", action: proceed)
-                    .disabled(
-                        inputDirectory == nil
-                            || outputDirectory == nil
-                            || model == nil
-                            || isLoading
-                    )
-                if isLoading {
-                    ProgressView()
-                }
-            }
+            .disabled(
+                inputDirectory == nil || outputDirectory == nil || model == nil
+                    || isLoading)
         }
+
         .padding()
+        .frame(maxWidth: 400)
+        .animation(.easeInOut(duration: 0.2), value: isLoading)
+        .animation(.easeInOut(duration: 0.2), value: inputDirectory)
+        .animation(.easeInOut(duration: 0.2), value: outputDirectory)
         .alert("Completed", isPresented: $showCompletionAlert) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -116,6 +126,7 @@ struct ContentView: View {
     }
 
     func proceed() {
+        print("asf")
         guard let inputDirectory, let outputDirectory else { return }
         guard let model else { return }
 
