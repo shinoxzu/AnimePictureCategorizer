@@ -2,21 +2,21 @@ import SwiftUI
 
 struct ContentView: View {
     @State private var model: AnimePictureCategorizerModel?
-
+    
     @State private var isInputDirectoryPickerPresented = false
     @State private var isOutputDirectoryPickerPresented = false
-
+    
     @State private var inputDirectory: URL?
     @State private var outputDirectory: URL?
-
+    
     @State private var isLoading = false
     @State private var showCompletionAlert = false
     @State private var errorMessage: String?
-
+    
     private let allowedExtensions: Set<String> = [
         "jpg", "jpeg", "png", "gif", "bmp", "tiff", "heic", "webp",
     ]
-
+    
     var body: some View {
         VStack(spacing: 20) {
             VStack(spacing: 12) {
@@ -32,7 +32,7 @@ struct ContentView: View {
                     allowedContentTypes: [.directory],
                     onCompletion: selectInputDirectory
                 )
-
+                
                 DirectoryButton(
                     title: "Select Output Directory",
                     systemImage: "square.and.arrow.up",
@@ -46,7 +46,7 @@ struct ContentView: View {
                     onCompletion: selectOutputDirectory
                 )
             }
-
+            
             Button(action: proceed) {
                 HStack {
                     if isLoading {
@@ -67,10 +67,11 @@ struct ContentView: View {
                 .cornerRadius(10)
             }
             .disabled(
-                inputDirectory == nil || outputDirectory == nil || model == nil
-                    || isLoading)
+                inputDirectory == nil
+                || outputDirectory == nil
+                || model == nil
+                || isLoading)
         }
-
         .padding()
         .frame(maxWidth: 400)
         .animation(.easeInOut(duration: 0.2), value: isLoading)
@@ -100,149 +101,133 @@ struct ContentView: View {
             }
         }
     }
-
+    
     func selectInputDirectory(_ dir: Result<URL, any Error>) {
         switch dir {
         case .success(let url):
             inputDirectory = url
         case .failure(let error):
             errorMessage =
-                "Failed to select input directory: \(error.localizedDescription)"
+            "Failed to select input directory: \(error.localizedDescription)"
         }
-
+        
         isInputDirectoryPickerPresented = false
     }
-
+    
     func selectOutputDirectory(_ dir: Result<URL, any Error>) {
         switch dir {
         case .success(let url):
             outputDirectory = url
         case .failure(let error):
-            errorMessage =
-                "Failed to select output directory: \(error.localizedDescription)"
+            errorMessage = "Failed to select output directory: \(error.localizedDescription)"
         }
-
+        
         isOutputDirectoryPickerPresented = false
     }
-
+    
     func proceed() {
-        print("asf")
         guard let inputDirectory, let outputDirectory else { return }
         guard let model else { return }
-
+        
         isLoading = true
-
+        
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 guard inputDirectory.startAccessingSecurityScopedResource()
                 else {
-                    throw NSError(
-                        domain: "", code: -1,
-                        userInfo: [
-                            NSLocalizedDescriptionKey:
-                                "Cannot access input directory"
-                        ])
+                    DispatchQueue.main.async {
+                        isLoading = false
+                        errorMessage = "Cannot access input directory"
+                    }
+                    return;
                 }
                 defer { inputDirectory.stopAccessingSecurityScopedResource() }
-
+                
                 guard outputDirectory.startAccessingSecurityScopedResource()
                 else {
-                    throw NSError(
-                        domain: "", code: -1,
-                        userInfo: [
-                            NSLocalizedDescriptionKey:
-                                "Cannot access output directory"
-                        ])
+                    DispatchQueue.main.async {
+                        isLoading = false
+                        errorMessage = "Cannot access output directory"
+                    }
+                    return;
                 }
                 defer { outputDirectory.stopAccessingSecurityScopedResource() }
-
+                
                 try createOutputDirectories(baseDirectory: outputDirectory)
-
+                
                 guard
                     let filesToPredict = FileManager.default.enumerator(
                         at: inputDirectory, includingPropertiesForKeys: nil
                     )
                 else {
-                    throw NSError(
-                        domain: "", code: -1,
-                        userInfo: [
-                            NSLocalizedDescriptionKey: "Cannot enumerate files"
-                        ])
+                    DispatchQueue.main.async {
+                        isLoading = false
+                        errorMessage = "Cannot enumerate files"
+                    }
+                    return;
                 }
-
+                
                 var files: [URL] = []
                 var modelInputs: [AnimePictureCategorizerModelInput] = []
-
+                
                 for case let file as URL in filesToPredict {
-                    if allowedExtensions.contains(
-                        file.pathExtension.lowercased())
-                    {
+                    if allowedExtensions.contains(file.pathExtension.lowercased()) {
                         do {
-                            let input = try AnimePictureCategorizerModelInput(
-                                imageAt: file)
+                            let input = try AnimePictureCategorizerModelInput(imageAt: file)
                             files.append(file)
                             modelInputs.append(input)
                         } catch {
-                            print(
-                                "Failed to create model input for file: \(file.path). Error: \(error)"
-                            )
+                            print("Failed to create model input for file: \(file.path). Error: \(error)")
                             continue
                         }
                     }
                 }
-
+                
                 if files.isEmpty {
-                    throw NSError(
-                        domain: "", code: -1,
-                        userInfo: [
-                            NSLocalizedDescriptionKey: "No valid files found"
-                        ])
+                    DispatchQueue.main.async {
+                        isLoading = false
+                        errorMessage = "No valid files found"
+                    }
+                    return;
                 }
-
+                
                 let predictions = try model.predictions(inputs: modelInputs)
-
+                
                 for (prediction, file) in zip(predictions, files) {
-                    let targetDirectory =
-                        outputDirectory.appendingPathComponent(
-                            prediction.target)
-                    let destination = targetDirectory.appendingPathComponent(
-                        file.lastPathComponent)
-
+                    let targetDirectory = outputDirectory.appendingPathComponent(prediction.target)
+                    let destination = targetDirectory.appendingPathComponent(file.lastPathComponent)
+                    
                     do {
-                        try FileManager.default.moveItem(
-                            at: file, to: destination)
+                        try FileManager.default.moveItem(at: file, to: destination)
                     } catch {
-                        print(
-                            "Failed to move file: \(file.path). Error: \(error)"
-                        )
+                        print("Failed to move file: \(file.path). Error: \(error)")
                     }
                 }
-
+                
                 DispatchQueue.main.async {
                     isLoading = false
                     showCompletionAlert = true
                 }
             } catch {
-                print("Error during processing: \(error)")
                 DispatchQueue.main.async {
                     isLoading = false
-                    errorMessage = error.localizedDescription
+                    errorMessage = "Error during processing: \(error)"
                 }
             }
         }
     }
-
+    
     func createOutputDirectories(baseDirectory: URL) throws {
         let sfwPath = baseDirectory.appendingPathComponent("sfw")
         let nsfwPath = baseDirectory.appendingPathComponent("nsfw")
-
+        
         if !FileManager.default.fileExists(atPath: sfwPath.path()) {
             try FileManager.default.createDirectory(
                 at: sfwPath,
                 withIntermediateDirectories: true
             )
         }
-
+        
         if !FileManager.default.fileExists(atPath: nsfwPath.path()) {
             try FileManager.default.createDirectory(
                 at: nsfwPath,

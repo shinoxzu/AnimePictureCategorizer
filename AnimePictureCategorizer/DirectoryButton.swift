@@ -12,13 +12,13 @@ struct DirectoryButton: View {
     let systemImage: String
     let isSelected: Bool
     let action: () -> Void
-
+    
     var body: some View {
         Button(action: action) {
             HStack {
                 Image(
                     systemName: isSelected
-                        ? "checkmark.circle.fill" : systemImage
+                    ? "checkmark.circle.fill" : systemImage
                 )
                 .foregroundColor(isSelected ? .green : .blue)
                 Text(title)
